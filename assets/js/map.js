@@ -187,16 +187,25 @@
       Object.keys(this._holes).forEach(function (id) {
         var hInfo = self._holes[id];
         if (hInfo.k <= 0) return;
-        self._softHole(ctx, map.latLngToLayerPoint([hInfo.lat, hInfo.lng]), hInfo.km * ppk * hInfo.k, id.length * 7 + 3);
+        // окно не меньше 70 px, чтобы и на общем плане было видно открытое место
+        var r = Math.max(hInfo.km * ppk, 70) * hInfo.k;
+        self._softHole(ctx, map.latLngToLayerPoint([hInfo.lat, hInfo.lng]), r, id.length * 7 + 3);
       });
       Object.keys(this._corridors).forEach(function (id) {
         var co = self._corridors[id];
         if (co.k <= 0) return;
-        var pts = co.points, n = pts.length, upto = Math.max(1, Math.round((n - 1) * co.k));
-        for (var i = 0; i <= upto; i++) {
-          var pp = map.latLngToLayerPoint(pts[i]);
-          var r = co.km * ppk * (0.75 + 0.25 * Math.sin(i * 1.7));
-          self._softHole(ctx, pp, r, i * 5 + id.length, 0.75);
+        var pts = co.points.map(function (ll) { return map.latLngToLayerPoint(ll); });
+        var lens = [0];
+        for (var i = 1; i < pts.length; i++) lens.push(lens[i - 1] + pts[i].distanceTo(pts[i - 1]));
+        var total = lens[lens.length - 1] * co.k;
+        var r = Math.max(co.km * ppk, 34);
+        var step = Math.max(6, r * 0.45), seg = 1, n = 0;
+        for (var d = 0; d <= total; d += step) {
+          while (seg < pts.length - 1 && lens[seg] < d) seg++;
+          var a = pts[seg - 1], b = pts[seg], t = (d - lens[seg - 1]) / ((lens[seg] - lens[seg - 1]) || 1);
+          var pp = L.point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+          self._softHole(ctx, pp, r * (0.85 + 0.15 * Math.sin(n * 1.3)), n * 5 + id.length, 0.5, 3);
+          n++;
         }
       });
       ctx.restore();
@@ -204,11 +213,11 @@
     },
 
     // Мягкое «окно» с неровным краем
-    _softHole: function (ctx, p, r, seed, strength) {
+    _softHole: function (ctx, p, r, seed, strength, count) {
       if (r < 1) return;
       strength = strength == null ? 1 : strength;
       var rnd = U.rng(seed);
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < (count || 6); i++) {
         var a = rnd() * Math.PI * 2, d = r * 0.18 * rnd();
         var x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d, rr = r * (0.78 + rnd() * 0.3);
         var g = ctx.createRadialGradient(x, y, rr * 0.25, x, y, rr);
@@ -277,7 +286,10 @@
 
     this.routeRenderer = L.svg({ pane: "routes", padding: 0.5 });
     var self = this;
-    map.on("zoomend moveend resize", function () { self._spreadMarkers(); self._styleRivers(); });
+    map.on("zoomend moveend resize", function () {
+      self._spreadMarkers(); self._styleRivers();
+      map.getContainer().classList.toggle("zoom-low", map.getZoom() < 9.5);
+    });
   }
 
   /* ---------- подложка ---------- */

@@ -151,7 +151,7 @@ a { color: inherit; }
    Экран карты
    ========================================================= */
 .app { position: fixed; inset: 0; }
-.map-screen { position: absolute; inset: 0; overflow: hidden; }
+.map-screen { position: absolute; inset: 0; overflow: hidden; z-index: 0; isolation: isolate; }
 .map {
   position: absolute; inset: 0;
   background:
@@ -201,10 +201,13 @@ a { color: inherit; }
   border: 1.5px solid var(--amber-2); background: rgba(10, 29, 32, .6);
 }
 .event-place__label {
-  position: absolute; left: 20px; top: -4px; white-space: nowrap;
+  position: absolute; right: 20px; top: -4px; white-space: nowrap;
   font-family: var(--font-display); font-style: italic; font-size: 14px; color: var(--amber-2);
   text-shadow: 0 0 6px #0d2628, 0 0 3px #0d2628;
 }
+
+.zoom-low .event-place__label { opacity: 0; }
+.event-place__label, .map-label--river span { transition: opacity .3s; }
 
 /* ---------- огоньки ---------- */
 .stop { cursor: pointer; }
@@ -452,7 +455,7 @@ a { color: inherit; }
   display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 220px; height: 100%;
   padding: 24px; text-align: center; align-items: center; color: var(--ink-soft); font-size: 15px;
 }
-.photo--hero .photo__missing { color: var(--mist); position: absolute; inset: 0; padding-bottom: 45%; }
+.photo--hero .photo__missing { color: var(--mist); position: absolute; inset: 0; justify-content: flex-start; padding-top: 96px; }
 .photo__missing-icon { width: 36px; height: 28px; border: 2px solid currentColor; border-radius: 6px; position: relative; opacity: .6; }
 .photo__missing-icon::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 5px; height: 9px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewX(-30deg); }
 .photo__missing-alt { font-style: italic; font-size: 14px; max-width: 420px; }
