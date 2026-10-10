@@ -102,7 +102,9 @@
       var c = L.latLng(chapters[0].place.coords);
       m.fitBounds(c.toBounds(46000), L.extend({ animate: false }, jmap.viewPadding()));
     } else if (state.completed >= N) {
-      m.fitBounds(unlockedBounds().pad(0.08), L.extend({ animate: false }, jmap.viewPadding()));
+      var pad = jmap.viewPadding(), w = m.getSize().x;
+      if (w >= 760) pad.paddingBottomRight = [Math.min(540, w * 0.38), 140];
+      m.fitBounds(unlockedBounds().pad(0.08), L.extend({ animate: false }, pad));
     } else {
       var b = L.latLngBounds([chapters[state.completed - 1].place.coords, chapters[state.completed].place.coords]);
       m.fitBounds(b.pad(0.3), L.extend({ animate: false, maxZoom: chapters[state.completed].camera.zoom - 1 }, jmap.viewPadding()));
@@ -113,7 +115,7 @@
 
   function fillStaticTexts() {
     document.title = C.meta.title;
-    $("hudTitle").innerHTML = U.typo(C.meta.title).replace(". ", ".<br>");
+    $("hudTitle").innerHTML = U.typo(C.meta.title).replace(". ", ". <br>");
     $("hudSubtitle").innerHTML = U.typo(C.meta.subtitle);
     $("hudScope").innerHTML = U.typo(C.meta.cloudsNote);
   }
@@ -327,7 +329,10 @@
     jmap.setEventPlace(last, true);
     renderTimeline();
     updateHud();
-    return jmap.flyToBounds(unlockedBounds().pad(0.08), jmap.viewPadding(), D.flyOut + 300)
+    // справа будет карточка итогов — оставляем под неё место
+    var pad = jmap.viewPadding(), w = jmap.map.getSize().x;
+    if (w >= 760) pad.paddingBottomRight = [Math.min(540, w * 0.38), 140];
+    return jmap.flyToBounds(unlockedBounds().pad(0.08), pad, D.flyOut + 300)
       .then(function () {
         return U.tween(U.reducedMotion() ? 0 : 1600, function (k) { jmap.fog.setAlpha(1 - k); });
       })

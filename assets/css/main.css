@@ -597,8 +597,9 @@ details[open] > summary::before { content: "−"; }
   .tl__label { display: none; }
   .tl--available .tl__label { display: block; }
   .leaflet-control-zoom { display: none; }
-  .leaflet-bottom.leaflet-right { bottom: 92px; }
-  .leaflet-control-attribution { font-size: 9.5px; max-width: 70vw; }
+  .leaflet-bottom.leaflet-right { bottom: 140px; }
+  .leaflet-control-attribution { font-size: 9.5px; max-width: 62vw; border-radius: 8px; }
+  .hide-sm { display: none; }
 
   .chapter__bar { padding: 8px 12px; gap: 8px; }
   .chapter__crumb { font-size: 12px; }
@@ -615,7 +616,8 @@ details[open] > summary::before { content: "−"; }
   .today { padding: 20px 16px; margin-left: -4px; margin-right: -4px; }
   .final { left: 12px; right: 12px; width: auto; top: auto; bottom: 86px; max-height: 70vh; }
   .final__card { padding: 22px 18px 18px; }
-  .final__title { font-size: 28px; padding-right: 100px; }
+  .final__title { font-size: 28px; }
+  .final__eyebrow { padding-right: 120px; }
 }
 
 @media (max-height: 560px) and (min-width: 761px) {
