@@ -32,6 +32,7 @@
 
     fillStaticTexts();
     jmap = new window.JourneyMap($("map"), window.JOURNEY_GEO, chapters, { onStop: onStop });
+    window.__journey = { map: jmap };  // для отладки в консоли браузера
     applyStateToMap();
     initialCamera();
     renderTimeline();
@@ -226,7 +227,7 @@
       { clipPath: "circle(14px at " + p.x + "px " + p.y + "px)" },
       { clipPath: "circle(" + R + "px at " + p.x + "px " + p.y + "px)" }
     ], { duration: D.open, easing: "cubic-bezier(.65,.05,.25,1)", fill: "forwards" });
-    img.animate([{ transform: "scale(1.22)", filter: "saturate(.6) brightness(1.15)" }, { transform: "scale(1)", filter: "none" }],
+    img.animate([{ transform: "scale(1.22)" }, { transform: "scale(1)" }],
       { duration: D.open + 250, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
     return a1.finished.catch(function () {});
   }

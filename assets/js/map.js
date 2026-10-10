@@ -156,14 +156,14 @@
 
       // 1. Сплошная дымка
       var grd = ctx.createLinearGradient(b.min.x, b.min.y, b.min.x, b.max.y);
-      grd.addColorStop(0, "rgba(206,219,222,0.94)");
-      grd.addColorStop(1, "rgba(178,197,202,0.95)");
+      grd.addColorStop(0, "rgba(160,182,186,0.93)");
+      grd.addColorStop(1, "rgba(124,149,155,0.95)");
       ctx.fillStyle = grd;
       ctx.fillRect(b.min.x, b.min.y, w, h);
 
       // 2. Фактура облаков: тени, затем светлые клубы
       var sprites = this._sprites, clouds = this._clouds;
-      var minPx = [140, 60, 30], maxPx = [6000, 3200, 1600];
+      var minPx = [160, 130, 110], maxPx = [7000, 3600, 1800];
       for (var pass = 0; pass < 2; pass++) {
         for (var i = 0; i < clouds.length; i++) {
           var cl = clouds[i], s = cl.km * ppk * 2.6;
@@ -171,10 +171,10 @@
           var p = map.latLngToLayerPoint([cl.lat, cl.lng]);
           if (p.x + s < b.min.x || p.x - s > b.max.x || p.y + s < b.min.y || p.y - s > b.max.y) continue;
           if (pass === 0) {
-            ctx.globalAlpha = this._alpha * 0.55;
+            ctx.globalAlpha = this._alpha * 0.6;
             ctx.drawImage(sprites.shade[cl.v], p.x - s / 2 + s * 0.05, p.y - s / 2 + s * 0.08, s, s);
           } else {
-            ctx.globalAlpha = this._alpha * 0.85;
+            ctx.globalAlpha = this._alpha * 0.62;
             ctx.drawImage(sprites.light[cl.v], p.x - s / 2, p.y - s / 2, s, s);
           }
         }
@@ -251,10 +251,16 @@
       worldCopyJump: false,
       fadeAnimation: true
     });
+    map.setView(bounds.getCenter(), 8, { animate: false });
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution('Карта: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">участники OpenStreetMap</a> · <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
     L.control.zoom({ position: "bottomright", zoomInTitle: "Приблизить", zoomOutTitle: "Отдалить" }).addTo(map);
-    L.control.scale({ position: "bottomright", imperial: false, maxWidth: 110 }).addTo(map);
+    var scale = L.control.scale({ position: "bottomright", imperial: false, maxWidth: 110 });
+    scale._updateMetric = function (maxMeters) {
+      var meters = this._getRoundNum(maxMeters), label = meters < 1000 ? meters + " м" : (meters / 1000) + " км";
+      this._updateScale(this._mScale, label, meters / maxMeters);
+    };
+    scale.addTo(map);
 
     [["base", 250], ["rivers", 300], ["labels", 350], ["fog", 450], ["routes", 500], ["eventMarkers", 590]].forEach(function (p) {
       var pane = map.createPane(p[0]);
@@ -308,7 +314,7 @@
     });
 
     geo.lakes.forEach(function (l) {
-      L.polygon(l.rings.map(toLL), { renderer: riverR, interactive: false, color: "#5aa3ad", weight: 0.8, fillColor: "#21606a", fillOpacity: 0.9 }).addTo(map);
+      L.polygon(l.rings.map(toLL), { renderer: riverR, interactive: false, color: "#7fc0c8", weight: 1, fillColor: "#2c7480", fillOpacity: 0.95 }).addTo(map);
     });
 
     var rank = { "Иртыш": 3.2, "Тобол": 2.8, "Тура": 2.6, "Тавда": 1.8, "Исеть": 1.8, "Ишим": 1.8, "Пышма": 1.5, "Вагай": 1.5, "Тюменка": 1.1 };

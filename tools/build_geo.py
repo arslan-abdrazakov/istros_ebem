@@ -70,6 +70,22 @@ def lines(geom):
     return [g for g in getattr(geom, "geoms", []) if isinstance(g, LineString)]
 
 
+def chaikin(coords, iterations=2):
+    """Сглаживание углов у сильно упрощённых рек (метод Чайкина)."""
+    pts = list(coords)
+    for _ in range(iterations):
+        out = [pts[0]]
+        for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
+            out.append((0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1))
+            out.append((0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1))
+        out.append(pts[-1])
+        pts = out
+    return pts
+
+
+SMOOTH = {"Пышма", "Исеть", "Тавда", "Вагай"}
+
+
 def decode_osm_rivers(path):
     out = {}
     with open(path, encoding="utf8") as f:
@@ -84,6 +100,8 @@ def decode_osm_rivers(path):
             for i in range(0, len(a), 2):
                 x += a[i]; y += a[i + 1]
                 pts.append((x / 1e4, y / 1e4))
+            if name in SMOOTH:
+                pts = chaikin(pts)
             out.setdefault(name, []).append(LineString(pts))
     return out
 
@@ -121,8 +139,23 @@ def main():
         if g.intersects(clip):
             g = g.intersection(clip).simplify(0.002, preserve_topology=True)
             for pg in polys(g):
-                if pg.area > 0.0004:
+                if pg.area > 0.00003:
                     lakes.append({"name": f["properties"].get("name_ru") or "", "rings": rnd(pg)})
+
+    # Андреевское озеро и соседние озёра под Тюменью — из OpenStreetMap
+    with open(os.path.join(HERE, "data", "lakes_osm.txt"), encoding="utf8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            name, data = line.strip().split("|")
+            a = list(map(int, data.split(",")))
+            pts, x, y = [], 0, 0
+            for i in range(0, len(a), 2):
+                x += a[i]; y += a[i + 1]
+                pts.append([x / 1e4, y / 1e4])
+            if pts[0] != pts[-1]:
+                pts.append(pts[0])
+            lakes.append({"name": name, "rings": [pts]})
 
     # --- города (пятна городской застройки) ---
     ur = load_ne(args.ne_dir, "ne_10m_urban_areas")
