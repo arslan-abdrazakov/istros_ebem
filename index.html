@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Тюмень. Сквозь туман времени</title>
+  <meta name="description" content="Историческое путешествие по Тюменской области: десять мест Тюмени, Тобольска и Ялуторовска — от древних поселений до нефтегазовых открытий.">
+  <meta name="theme-color" content="#0a1d20">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+  <a class="skip-link" href="#timeline">Перейти к шкале глав</a>
+
+  <div id="loader" class="loader" role="status" aria-live="polite">
+    <div class="loader__box">
+      <svg class="loader__compass" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5"/>
+        <circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width=".8" stroke-dasharray="2 4" opacity=".5"/>
+        <path d="M32 6 L36 32 L32 58 L28 32 Z" fill="currentColor" opacity=".9"/>
+        <path d="M6 32 L32 28 L58 32 L32 36 Z" fill="currentColor" opacity=".35"/>
+      </svg>
+      <p class="loader__title">Тюмень. Сквозь туман времени</p>
+      <p class="loader__text">Разворачиваем карту…</p>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="noscript">Для путешествия по карте нужен включённый JavaScript.</div>
+  </noscript>
+
+  <main class="app">
+    <section id="mapScreen" class="map-screen" aria-label="Карта путешествия">
+      <div id="map" class="map" role="region" aria-label="Иллюстрированная карта юга Тюменской области. Огоньки — главы путешествия; их можно выбрать клавишей Tab."></div>
+      <div class="haze" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+
+      <header class="hud hud--title">
+        <p class="hud__eyebrow">Историческое путешествие</p>
+        <h1 class="hud__title" id="hudTitle">Тюмень. Сквозь туман времени</h1>
+        <p class="hud__subtitle" id="hudSubtitle">Историческое путешествие по Тюменской области</p>
+        <p class="hud__invite"><span class="hud__spark" aria-hidden="true"></span><span id="invite">Откройте первую точку — и начните путешествие</span></p>
+        <p class="hud__indicator" id="chapterIndicator">Глава 1 из 10</p>
+        <p class="hud__scope" id="hudScope"></p>
+      </header>
+
+      <nav class="hud hud--actions" aria-label="О проекте">
+        <button type="button" class="btn btn--hud" id="btnAbout">О проекте и источники</button>
+        <button type="button" class="btn btn--hud" id="btnFinal" hidden>Итоги путешествия</button>
+        <button type="button" class="btn btn--hud btn--quiet" id="btnReset">Начать заново</button>
+      </nav>
+
+      <nav class="timeline" id="timeline" aria-label="Шкала времени: главы путешествия" tabindex="-1">
+        <p class="timeline__now" id="timelineNow"></p>
+        <ol class="timeline__list" id="timelineList"></ol>
+      </nav>
+
+      <svg class="compass" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width=".8" opacity=".55"/>
+        <circle cx="50" cy="50" r="31" fill="none" stroke="currentColor" stroke-width=".6" stroke-dasharray="1.5 3" opacity=".5"/>
+        <path d="M50 8 L55 50 L50 92 L45 50 Z" fill="currentColor" opacity=".75"/>
+        <path d="M8 50 L50 45 L92 50 L50 55 Z" fill="currentColor" opacity=".3"/>
+        <text x="50" y="6" text-anchor="middle" font-size="8" fill="currentColor">С</text>
+      </svg>
+    </section>
+
+    <article id="chapter" class="chapter" hidden aria-labelledby="chapterTitle"></article>
+
+    <section id="final" class="final" hidden aria-label="Итоги путешествия"></section>
+  </main>
+
+  <div id="portal" class="portal" aria-hidden="true"><img id="portalImg" alt=""></div>
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
+
+  <dialog id="aboutDialog" class="dialog" aria-labelledby="aboutTitle">
+    <div class="dialog__head">
+      <h2 id="aboutTitle" class="dialog__title">О проекте</h2>
+      <button type="button" class="btn btn--ghost dialog__close" id="aboutClose">Закрыть</button>
+    </div>
+    <div class="dialog__body" id="aboutBody"></div>
+  </dialog>
+
+  <dialog id="resetDialog" class="dialog dialog--small" aria-labelledby="resetTitle">
+    <h2 id="resetTitle" class="dialog__title">Начать путешествие заново?</h2>
+    <p>Пройденные главы снова скроются в облаках. Прогресс хранится только на этом устройстве и будет удалён.</p>
+    <div class="dialog__actions">
+      <button type="button" class="btn btn--ghost" id="resetCancel">Отмена</button>
+      <button type="button" class="btn btn--danger" id="resetConfirm">Сбросить путешествие</button>
+    </div>
+  </dialog>
+
+  <script src="assets/vendor/leaflet/leaflet.js"></script>
+  <script src="content/geo.js"></script>
+  <script src="content/chapters.js"></script>
+  <script src="assets/photos/manifest.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/util.js"></script>
+  <script src="assets/js/map.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
