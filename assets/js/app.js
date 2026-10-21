@@ -8,7 +8,7 @@
   var D = CFG.DURATION;
 
   var C, chapters, N, jmap, state;
-  var busy = false, openIdx = null, finalCollapsed = false, closingViaUI = false, finalHideTimer;
+  var busy = false, openIdx = null, finalCollapsed = false, closingViaUI = false;
   var $ = function (id) { return document.getElementById(id); };
 
   /* ================= запуск ================= */
@@ -32,8 +32,9 @@
 
     fillStaticTexts();
     jmap = new window.JourneyMap($("map"), window.JOURNEY_GEO, chapters, { onStop: onStop });
-    initialCamera();
+    window.__journey = { map: jmap };  // для отладки в консоли браузера
     applyStateToMap();
+    initialCamera();
     renderTimeline();
     updateHud();
     bindUi();
@@ -74,6 +75,14 @@
   /* ================= карта ================= */
 
   function corridorKm(i) { return Math.max(1.2, Math.min(5, (chapters[i].reveal.km || 4) * 0.45)); }
+  function changesCity(i) { return chapters[i - 1].place.city !== chapters[i].place.city; }
+  function regionKm(i) {
+    var distance = L.latLng(chapters[i - 1].place.coords).distanceTo(L.latLng(chapters[i].place.coords)) / 1000;
+    return Math.max(45, Math.min(70, distance * 0.3));
+  }
+  function regionPoints(route, destination) {
+    return [route[10], route[20], route[30], destination];
+  }
 
   function applyStateToMap() {
     for (var i = 0; i < N; i++) {
@@ -83,7 +92,9 @@
       jmap.setEventPlace(i, st === "visited");
       if (i > 0 && st !== "locked") {
         jmap.addRoute(i - 1, i, false);
-        jmap.fog.setCorridor("c" + i, jmap.routes[(i - 1) + "-" + i].pts, corridorKm(i), 1);
+        var route = jmap.routes[(i - 1) + "-" + i].pts;
+        jmap.fog.setCorridor("c" + i, route, corridorKm(i), 1);
+        if (changesCity(i)) jmap.fog.setRegion("r" + i, regionPoints(route, ch.place.coords), regionKm(i), 1);
       }
     }
     if (state.completed >= N) jmap.fog.setAlpha(0);
@@ -101,7 +112,9 @@
       var c = L.latLng(chapters[0].place.coords);
       m.fitBounds(c.toBounds(46000), L.extend({ animate: false }, jmap.viewPadding()));
     } else if (state.completed >= N) {
-      m.fitBounds(unlockedBounds().pad(0.08), L.extend({ animate: false }, jmap.viewPadding()));
+      var pad = jmap.viewPadding(), w = m.getSize().x;
+      if (w >= 760) pad.paddingBottomRight = [Math.min(540, w * 0.38), 140];
+      m.fitBounds(unlockedBounds().pad(0.08), L.extend({ animate: false }, pad));
     } else {
       var b = L.latLngBounds([chapters[state.completed - 1].place.coords, chapters[state.completed].place.coords]);
       m.fitBounds(b.pad(0.3), L.extend({ animate: false, maxZoom: chapters[state.completed].camera.zoom - 1 }, jmap.viewPadding()));
@@ -112,7 +125,7 @@
 
   function fillStaticTexts() {
     document.title = C.meta.title;
-    $("hudTitle").innerHTML = U.typo(C.meta.title).replace(". ", ".<br>");
+    $("hudTitle").innerHTML = U.typo(C.meta.title).replace(". ", ". <br>");
     $("hudSubtitle").innerHTML = U.typo(C.meta.subtitle);
     $("hudScope").innerHTML = U.typo(C.meta.cloudsNote);
   }
@@ -138,7 +151,6 @@
       b.type = "button";
       b.className = "tl tl--" + st;
       b.dataset.idx = i;
-      b.dataset.chapter = i + 1;
       if (st === "locked") {
         b.disabled = true;
         b.setAttribute("aria-label", "Глава " + (i + 1) + " ещё скрыта в тумане");
@@ -227,7 +239,7 @@
       { clipPath: "circle(14px at " + p.x + "px " + p.y + "px)" },
       { clipPath: "circle(" + R + "px at " + p.x + "px " + p.y + "px)" }
     ], { duration: D.open, easing: "cubic-bezier(.65,.05,.25,1)", fill: "forwards" });
-    img.animate([{ transform: "scale(1.22)", filter: "saturate(.6) brightness(1.15)" }, { transform: "scale(1)", filter: "none" }],
+    img.animate([{ transform: "scale(1.22)" }, { transform: "scale(1)" }],
       { duration: D.open + 250, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
     return a1.finished.catch(function () {});
   }
@@ -271,10 +283,10 @@
     var p = jmap.markerScreenPoint(i);
     var closing = portalClose(ch.photo, p);
     el.classList.remove("chapter--shown");
+    setTimeout(function () { el.hidden = true; el.innerHTML = ""; }, 260);
     jmap.fog.setHoleK(ch.id, 1.8);
     closing.then(function () {
-      el.hidden = true; el.innerHTML = "";
-      U.tween(U.reducedMotion() ? 0 : 300, function (k) { jmap.fog.setHoleK(ch.id, 1.8 - 0.8 * k); });
+      U.tween(400, function (k) { jmap.fog.setHoleK(ch.id, 1.8 - 0.8 * k); });
       openIdx = null;
       if (continueJourney && i === state.completed) {
         state.completed += 1;
@@ -303,13 +315,15 @@
         var arcPts = jmap.arc(cur.place.coords, next.place.coords, i % 2 ? -1 : 1);
         jmap.fog.setCorridor("c" + ni, arcPts, corridorKm(ni), 0);
         jmap.fog.setHole(next.id, next.place.coords, next.reveal.km || 5, 0);
+        if (changesCity(ni)) jmap.fog.setRegion("r" + ni, regionPoints(arcPts, next.place.coords), regionKm(ni), 0);
         var rm = U.reducedMotion();
         var t1 = U.tween(rm ? 0 : D.reveal, function (k) { jmap.fog.setCorridorK("c" + ni, k); });
         var t2 = U.wait(rm ? 0 : D.reveal * 0.35).then(function () {
           return U.tween(rm ? 0 : D.reveal, function (k) { jmap.fog.setHoleK(next.id, k); }, U.easeOut);
         });
         var t3 = U.wait(rm ? 0 : 150).then(function () { return jmap.addRoute(i, ni, !rm, D.route); });
-        return Promise.all([t1, t2, t3]);
+        var t4 = changesCity(ni) ? U.tween(rm ? 0 : D.reveal * 1.4, function (k) { jmap.fog.setRegionK("r" + ni, k); }, U.easeOut) : Promise.resolve();
+        return Promise.all([t1, t2, t3, t4]);
       })
       .then(function () {
         jmap.setMarker(ni, "available", { appear: true });
@@ -327,9 +341,12 @@
     jmap.setEventPlace(last, true);
     renderTimeline();
     updateHud();
-    return jmap.flyToBounds(unlockedBounds().pad(0.08), jmap.viewPadding(), D.flyOut + 300)
+    // справа будет карточка итогов — оставляем под неё место
+    var pad = jmap.viewPadding(), w = jmap.map.getSize().x;
+    if (w >= 760) pad.paddingBottomRight = [Math.min(540, w * 0.38), 140];
+    return jmap.flyToBounds(unlockedBounds().pad(0.08), pad, D.flyOut + 300)
       .then(function () {
-        return U.tween(U.reducedMotion() ? 0 : 900, function (k) { jmap.fog.setAlpha(1 - k); });
+        return U.tween(U.reducedMotion() ? 0 : 1600, function (k) { jmap.fog.setAlpha(1 - k); });
       })
       .then(function () { showFinal(true); announce("Путешествие завершено. Карта полностью открыта."); });
   }
@@ -338,6 +355,7 @@
 
   function renderChapter(i) {
     var ch = chapters[i], st = status(i), el = $("chapter");
+    el.classList.toggle("chapter--oil", i === N - 1);
     var links = U.routeLinks(ch.place.coords);
     var isCurrent = st === "available";
     var isLast = i === N - 1;
@@ -458,7 +476,6 @@
   /* ================= финал ================= */
 
   function showFinal(animate) {
-    clearTimeout(finalHideTimer);
     var f = $("final");
     finalCollapsed = false;
     var m = C.meta;
@@ -488,8 +505,7 @@
     var f = $("final");
     if (f.hidden) return;
     f.classList.remove("final--shown");
-    clearTimeout(finalHideTimer);
-    finalHideTimer = setTimeout(function () { f.hidden = true; }, U.reducedMotion() ? 0 : 300);
+    setTimeout(function () { f.hidden = true; }, 300);
     if (state.completed >= N) finalCollapsed = true;
     updateHud();
   }
@@ -497,12 +513,12 @@
   /* ================= «О проекте» и сброс ================= */
 
   function openAbout() {
-    if (busy) return;
     var m = C.meta, d = $("aboutDialog"), body = $("aboutBody");
     var opened = chapters.filter(function (c, i) { return isOpenable(i); });
     var authors = (m.authors && m.authors.length) ? m.authors.map(U.escape).join(", ") : "<i>будут указаны позднее</i>";
     var html = [];
     html.push("<p>" + U.typo(m.about) + "</p><p>" + U.typo(m.scope) + "</p><p>" + U.typo(m.cloudsNote) + "</p>");
+    html.push("<p>Карту можно двигать свайпом на тачпаде без нажатия или одним пальцем на телефоне. Масштаб меняется жестом щипка и кнопками на карте.</p>");
     html.push('<h3>Авторы</h3><p>Учебный проект по дисциплине «' + U.escape(m.course) + "», " + U.escape(m.year) + ". Авторы: " + authors + (m.institution ? ". " + U.escape(m.institution) : "") + ".</p>");
     if (CFG.SHOW_REVIEW_NOTES) html.push('<p class="about__draft">Рабочая версия: тексты глав — черновики, они проходят проверку. В каждой главе есть список вопросов к проверке.</p>');
     html.push("<h3>Источники открытых глав</h3>");
@@ -530,7 +546,6 @@
   }
 
   function openReset() {
-    if (busy) return;
     var d = $("resetDialog");
     if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
   }

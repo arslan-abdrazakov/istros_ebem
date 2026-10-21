@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Тюмень. Сквозь туман времени</title>
   <meta name="description" content="Историческое путешествие по Тюменской области: десять мест Тюмени, Тобольска и Ялуторовска — от древних поселений до нефтегазовых открытий.">
-  <meta name="theme-color" content="#0a1d20">
+  <meta name="theme-color" content="#0B0D0F">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="assets/css/main.css">
@@ -32,7 +32,7 @@
 
   <main class="app">
     <section id="mapScreen" class="map-screen" aria-label="Карта путешествия">
-      <div id="map" class="map" role="region" aria-label="Иллюстрированная карта юга Тюменской области. Огоньки — главы путешествия; их можно выбрать клавишей Tab."></div>
+      <div id="map" class="map" role="region" aria-label="Иллюстрированная карта юга Тюменской области. Передвигайте её свайпом на тачпаде или пальцем; масштаб меняется жестом щипка или кнопками. Огоньки глав можно выбрать клавишей Tab."></div>
       <div class="haze" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
 
@@ -46,7 +46,7 @@
       </header>
 
       <nav class="hud hud--actions" aria-label="О проекте">
-        <button type="button" class="btn btn--hud" id="btnAbout">О проекте и источники</button>
+        <button type="button" class="btn btn--hud" id="btnAbout">О проекте<span class="hide-sm"> и источники</span></button>
         <button type="button" class="btn btn--hud" id="btnFinal" hidden>Итоги путешествия</button>
         <button type="button" class="btn btn--hud btn--quiet" id="btnReset">Начать заново</button>
       </nav>

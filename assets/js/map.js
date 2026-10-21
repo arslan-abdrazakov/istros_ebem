@@ -26,13 +26,13 @@
       var rad = size * (0.12 + r() * 0.14);
       var grd = g.createRadialGradient(x, y - rad * 0.25, rad * 0.1, x, y, rad);
       if (light) {
-        grd.addColorStop(0, "rgba(255,255,255,0.95)");
-        grd.addColorStop(0.55, "rgba(238,244,245,0.55)");
-        grd.addColorStop(1, "rgba(225,234,236,0)");
+        grd.addColorStop(0, "rgba(105,115,124,0.17)");
+        grd.addColorStop(0.55, "rgba(91,101,110,0.10)");
+        grd.addColorStop(1, "rgba(75,84,93,0)");
       } else {
-        grd.addColorStop(0, "rgba(120,146,154,0.55)");
-        grd.addColorStop(0.6, "rgba(120,146,154,0.22)");
-        grd.addColorStop(1, "rgba(120,146,154,0)");
+        grd.addColorStop(0, "rgba(8,11,15,0.52)");
+        grd.addColorStop(0.6, "rgba(20,25,30,0.30)");
+        grd.addColorStop(1, "rgba(20,25,30,0)");
       }
       g.fillStyle = grd;
       g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
@@ -47,6 +47,7 @@
       L.Renderer.prototype.initialize.call(this, opts);
       this._holes = {};        // id -> {lat, lng, km, k}
       this._corridors = {};    // id -> {points:[latlng], km, k}
+      this._regions = {};      // id -> {points:[latlng], km, k}
       this._alpha = 1;         // общая плотность облаков (для финала)
       this._sprites = { light: [], shade: [] };
       for (var i = 0; i < 4; i++) {
@@ -92,7 +93,12 @@
       this.redraw();
     },
     setCorridorK: function (id, k) { if (this._corridors[id]) { this._corridors[id].k = k; this.redraw(); } },
-    clearAll: function () { this._holes = {}; this._corridors = {}; this._alpha = 1; this.redraw(); },
+    setRegion: function (id, latlngs, km, k) {
+      this._regions[id] = { points: latlngs, km: km, k: k == null ? 1 : k };
+      this.redraw();
+    },
+    setRegionK: function (id, k) { if (this._regions[id]) { this._regions[id].k = k; this.redraw(); } },
+    clearAll: function () { this._holes = {}; this._corridors = {}; this._regions = {}; this._alpha = 1; this.redraw(); },
     setAlpha: function (a) { this._alpha = a; this.redraw(); },
 
     redraw: function () {
@@ -154,16 +160,16 @@
       ctx.save();
       ctx.globalAlpha = this._alpha;
 
-      // 1. Сплошная дымка
+      // Холодная полупрозрачная дымка оставляет читаемыми силуэты суши.
       var grd = ctx.createLinearGradient(b.min.x, b.min.y, b.min.x, b.max.y);
-      grd.addColorStop(0, "rgba(206,219,222,0.94)");
-      grd.addColorStop(1, "rgba(178,197,202,0.95)");
+      grd.addColorStop(0, "rgba(18,22,27,0.88)");
+      grd.addColorStop(1, "rgba(25,30,36,0.92)");
       ctx.fillStyle = grd;
       ctx.fillRect(b.min.x, b.min.y, w, h);
 
       // 2. Фактура облаков: тени, затем светлые клубы
       var sprites = this._sprites, clouds = this._clouds;
-      var minPx = [140, 60, 30], maxPx = [6000, 3200, 1600];
+      var minPx = [160, 130, 110], maxPx = [7000, 3600, 1800];
       for (var pass = 0; pass < 2; pass++) {
         for (var i = 0; i < clouds.length; i++) {
           var cl = clouds[i], s = cl.km * ppk * 2.6;
@@ -171,10 +177,10 @@
           var p = map.latLngToLayerPoint([cl.lat, cl.lng]);
           if (p.x + s < b.min.x || p.x - s > b.max.x || p.y + s < b.min.y || p.y - s > b.max.y) continue;
           if (pass === 0) {
-            ctx.globalAlpha = this._alpha * 0.55;
+            ctx.globalAlpha = this._alpha * 0.45;
             ctx.drawImage(sprites.shade[cl.v], p.x - s / 2 + s * 0.05, p.y - s / 2 + s * 0.08, s, s);
           } else {
-            ctx.globalAlpha = this._alpha * 0.85;
+            ctx.globalAlpha = this._alpha * 0.32;
             ctx.drawImage(sprites.light[cl.v], p.x - s / 2, p.y - s / 2, s, s);
           }
         }
@@ -187,28 +193,53 @@
       Object.keys(this._holes).forEach(function (id) {
         var hInfo = self._holes[id];
         if (hInfo.k <= 0) return;
-        self._softHole(ctx, map.latLngToLayerPoint([hInfo.lat, hInfo.lng]), hInfo.km * ppk * hInfo.k, id.length * 7 + 3);
+        // окно не меньше 70 px, чтобы и на общем плане было видно открытое место
+        var r = Math.max(hInfo.km * ppk, 70) * hInfo.k;
+        self._softHole(ctx, map.latLngToLayerPoint([hInfo.lat, hInfo.lng]), r, id.length * 7 + 3);
       });
       Object.keys(this._corridors).forEach(function (id) {
         var co = self._corridors[id];
         if (co.k <= 0) return;
-        var pts = co.points, n = pts.length, upto = Math.max(1, Math.round((n - 1) * co.k));
-        for (var i = 0; i <= upto; i++) {
-          var pp = map.latLngToLayerPoint(pts[i]);
-          var r = co.km * ppk * (0.75 + 0.25 * Math.sin(i * 1.7));
-          self._softHole(ctx, pp, r, i * 5 + id.length, 0.75);
+        var pts = co.points.map(function (ll) { return map.latLngToLayerPoint(ll); });
+        var lens = [0];
+        for (var i = 1; i < pts.length; i++) lens.push(lens[i - 1] + pts[i].distanceTo(pts[i - 1]));
+        var total = lens[lens.length - 1] * co.k;
+        var r = Math.max(co.km * ppk, 34);
+        var step = Math.max(6, r * 0.45), seg = 1, n = 0;
+        for (var d = 0; d <= total; d += step) {
+          while (seg < pts.length - 1 && lens[seg] < d) seg++;
+          var a = pts[seg - 1], b = pts[seg], t = (d - lens[seg - 1]) / ((lens[seg] - lens[seg - 1]) || 1);
+          var pp = L.point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+          self._softHole(ctx, pp, r * (0.85 + 0.15 * Math.sin(n * 1.3)), n * 5 + id.length, 0.5, 3);
+          n++;
         }
+      });
+      // Между городами открывается и окружающая местность, а не только линия.
+      // Размытые участки привязаны к тем же координатам и масштабируются с картой.
+      Object.keys(this._regions).forEach(function (id) {
+        var region = self._regions[id];
+        if (region.k <= 0) return;
+        var r = Math.max(region.km * ppk, 55) * (0.55 + 0.45 * region.k);
+        region.points.forEach(function (ll) {
+          var p = map.latLngToLayerPoint(ll);
+          var g = ctx.createRadialGradient(p.x, p.y, r * 0.12, p.x, p.y, r);
+          g.addColorStop(0, "rgba(0,0,0," + (0.86 * region.k) + ")");
+          g.addColorStop(0.55, "rgba(0,0,0," + (0.58 * region.k) + ")");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+        });
       });
       ctx.restore();
       ctx.globalCompositeOperation = "source-over";
     },
 
     // Мягкое «окно» с неровным краем
-    _softHole: function (ctx, p, r, seed, strength) {
+    _softHole: function (ctx, p, r, seed, strength, count) {
       if (r < 1) return;
       strength = strength == null ? 1 : strength;
       var rnd = U.rng(seed);
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < (count || 6); i++) {
         var a = rnd() * Math.PI * 2, d = r * 0.18 * rnd();
         var x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d, rr = r * (0.78 + rnd() * 0.3);
         var g = ctx.createRadialGradient(x, y, rr * 0.25, x, y, rr);
@@ -243,23 +274,56 @@
       maxZoom: 17,
       zoomSnap: 0.25,
       zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 110,
-      maxBounds: bounds.pad(0.15),
-      maxBoundsViscosity: 0.85,
+      scrollWheelZoom: false,
+      touchZoom: true,
+      inertia: true,
+      maxBounds: bounds.pad(-0.02),
+      maxBoundsViscosity: 1,
       keyboard: true,
       keyboardPanDelta: 120,
       worldCopyJump: false,
       fadeAnimation: true
     });
+    map.setView(bounds.getCenter(), 8, { animate: false });
+    // Не показываем пустоту за пределами загруженной географии при отдалении.
+    function limitZoomOut() {
+      map.setMinZoom(Math.max(6.5, map.getBoundsZoom(bounds.pad(-0.02), true)));
+    }
+    limitZoomOut();
+    map.on("resize", limitZoomOut);
+    // Свайп двумя пальцами на тачпаде двигает карту без нажатия.
+    // Жест щипка (Ctrl+wheel в браузере) по-прежнему меняет масштаб.
+    var wheelX = 0, wheelY = 0, wheelFrame = null;
+    el.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      if (e.ctrlKey) {
+        map.setZoomAround(map.mouseEventToContainerPoint(e), map.getZoom() - Math.sign(e.deltaY) * 0.25);
+        return;
+      }
+      var unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? map.getSize().y : 1;
+      wheelX += e.deltaX * unit;
+      wheelY += e.deltaY * unit;
+      if (wheelFrame !== null) return;
+      wheelFrame = requestAnimationFrame(function () {
+        map.panBy([wheelX, wheelY], { animate: false });
+        wheelX = wheelY = 0;
+        wheelFrame = null;
+      });
+    }, { passive: false });
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution('Карта: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">участники OpenStreetMap</a> · <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
     L.control.zoom({ position: "bottomright", zoomInTitle: "Приблизить", zoomOutTitle: "Отдалить" }).addTo(map);
-    L.control.scale({ position: "bottomright", imperial: false, maxWidth: 110 }).addTo(map);
+    var scale = L.control.scale({ position: "bottomright", imperial: false, maxWidth: 110 });
+    scale._updateMetric = function (maxMeters) {
+      var meters = this._getRoundNum(maxMeters), label = meters < 1000 ? meters + " м" : (meters / 1000) + " км";
+      this._updateScale(this._mScale, label, meters / maxMeters);
+    };
+    scale.addTo(map);
 
-    [["base", 250], ["rivers", 300], ["labels", 350], ["fog", 450], ["routes", 500], ["eventMarkers", 590]].forEach(function (p) {
+    [["base", 250], ["rivers", 300], ["labels", 350], ["fog", 450], ["cartography", 465], ["routes", 500], ["eventMarkers", 590]].forEach(function (p) {
       var pane = map.createPane(p[0]);
       pane.style.zIndex = p[1];
-      if (p[0] === "labels" || p[0] === "fog") pane.style.pointerEvents = "none";
+      if (p[0] === "labels" || p[0] === "fog" || p[0] === "cartography") pane.style.pointerEvents = "none";
     });
 
     this._drawBase();
@@ -271,7 +335,10 @@
 
     this.routeRenderer = L.svg({ pane: "routes", padding: 0.5 });
     var self = this;
-    map.on("zoomend moveend resize", function () { self._spreadMarkers(); self._styleRivers(); });
+    map.on("zoomend moveend resize", function () {
+      self._spreadMarkers(); self._styleRivers();
+      map.getContainer().classList.toggle("zoom-low", map.getZoom() < 9.5);
+    });
   }
 
   /* ---------- подложка ---------- */
@@ -287,9 +354,9 @@
       r.rings.forEach(function (poly) {
         L.polygon(poly.map(toLL), {
           renderer: baseR, interactive: false,
-          stroke: true, color: r.tyumen ? "#4f8780" : "#2b5553", weight: r.tyumen ? 1.4 : 1,
+          stroke: true, color: r.tyumen ? "#515B63" : "#343C44", weight: r.tyumen ? 1.4 : 1,
           dashArray: r.tyumen ? "1 0" : "4 5", opacity: r.tyumen ? 0.75 : 0.6,
-          fill: true, fillColor: r.tyumen ? "#173f3d" : "#10302f", fillOpacity: 1
+          fill: true, fillColor: r.tyumen ? "#252B31" : "#171C21", fillOpacity: 1
         }).addTo(map);
       });
     });
@@ -297,18 +364,18 @@
     // сетка градусов — деликатная картографическая деталь
     var ext = geo.extent;
     for (var lon = Math.ceil(ext[0]); lon <= ext[2]; lon += 1) {
-      L.polyline([[ext[1], lon], [ext[3], lon]], { renderer: baseR, interactive: false, color: "#3c6763", weight: 0.6, opacity: 0.35, dashArray: "2 6" }).addTo(map);
+      L.polyline([[ext[1], lon], [ext[3], lon]], { renderer: baseR, interactive: false, color: "#485058", weight: 0.6, opacity: 0.3, dashArray: "2 6" }).addTo(map);
     }
     for (var lat = Math.ceil(ext[1] * 2) / 2; lat <= ext[3]; lat += 0.5) {
-      L.polyline([[lat, ext[0]], [lat, ext[2]]], { renderer: baseR, interactive: false, color: "#3c6763", weight: 0.6, opacity: 0.35, dashArray: "2 6" }).addTo(map);
+      L.polyline([[lat, ext[0]], [lat, ext[2]]], { renderer: baseR, interactive: false, color: "#485058", weight: 0.6, opacity: 0.3, dashArray: "2 6" }).addTo(map);
     }
 
     geo.urban.forEach(function (u) {
-      L.polygon(u.rings.map(toLL), { renderer: baseR, interactive: false, stroke: true, color: "#c9944a", weight: 0.8, opacity: 0.45, fillColor: "#b8833d", fillOpacity: 0.16 }).addTo(map);
+      L.polygon(u.rings.map(toLL), { renderer: baseR, interactive: false, stroke: true, color: "#67717B", weight: 0.8, opacity: 0.5, fillColor: "#67717B", fillOpacity: 0.12 }).addTo(map);
     });
 
     geo.lakes.forEach(function (l) {
-      L.polygon(l.rings.map(toLL), { renderer: riverR, interactive: false, color: "#5aa3ad", weight: 0.8, fillColor: "#21606a", fillOpacity: 0.9 }).addTo(map);
+      L.polygon(l.rings.map(toLL), { renderer: riverR, interactive: false, color: "#7893A3", weight: 1, fillColor: "#465E6C", fillOpacity: 0.9 }).addTo(map);
     });
 
     var rank = { "Иртыш": 3.2, "Тобол": 2.8, "Тура": 2.6, "Тавда": 1.8, "Исеть": 1.8, "Ишим": 1.8, "Пышма": 1.5, "Вагай": 1.5, "Тюменка": 1.1 };
@@ -317,8 +384,8 @@
     Object.keys(geo.rivers).forEach(function (name) {
       geo.rivers[name].forEach(function (line) {
         var ll = toLL(line);
-        var glow = L.polyline(ll, { renderer: riverR, interactive: false, color: "#3f8e9b", opacity: 0.22, lineCap: "round", lineJoin: "round" }).addTo(map);
-        var core = L.polyline(ll, { renderer: riverR, interactive: false, color: "#7fc0c8", opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(map);
+        var glow = L.polyline(ll, { renderer: riverR, interactive: false, color: "#546D7B", opacity: 0.18, lineCap: "round", lineJoin: "round" }).addTo(map);
+        var core = L.polyline(ll, { renderer: riverR, interactive: false, color: "#7893A3", opacity: 0.78, lineCap: "round", lineJoin: "round" }).addTo(map);
         self._rivers.push({ name: name, glow: glow, core: core, w: rank[name] || 1.2 });
       });
     });
@@ -357,10 +424,60 @@
     var cities = [["Тюмень", 57.152, 65.565, "big"], ["Тобольск", 58.226, 68.275, "big"], ["Ялуторовск", 56.66, 66.33, ""]];
     cities.forEach(function (c) {
       L.marker([c[1], c[2]], {
-        pane: "labels", interactive: false, keyboard: false,
+        pane: "cartography", interactive: false, keyboard: false,
         icon: L.divIcon({ className: "map-label map-label--city " + (c[3] ? "map-label--big" : ""), html: "<span>" + c[0] + "</span>", iconSize: [0, 0] })
       }).addTo(map);
     });
+    // Второстепенные населённые пункты служат ориентирами и не связаны с главами.
+    // Координаты центров — OpenStreetMap (см. docs/MAP_DECOR.md).
+    var towns = [
+      ["Заводоуковск", 56.50929, 66.53926],
+      ["Ишим", 56.10920, 69.45720],
+      ["Ярково", 57.40559, 67.07177],
+      ["Нижняя Тавда", 57.67390, 66.18274],
+      ["Покровское", 57.23961, 66.78756],
+      ["Вагай", 57.93522, 69.01259],
+      ["Уват", 59.14288, 68.89617]
+    ];
+    towns.forEach(function (c) {
+      L.marker([c[1], c[2]], {
+        pane: "cartography", interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "map-label map-label--town", html: '<span class="map-town__dot"></span><span class="map-town__name">' + U.escape(c[0]) + '</span>', iconSize: [0, 0] })
+      }).addTo(map);
+    });
+    this._forestMarks(towns.concat(cities));
+  };
+
+  JourneyMap.prototype._forestMarks = function (settlements) {
+    var map = this.map, geo = this.geo, rnd = U.rng(72619);
+    var region = geo.regions.find(function (r) { return r.tyumen; });
+    if (!region) return;
+    function inRing(lon, lat, ring) {
+      var inside = false;
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var a = ring[i], b = ring[j];
+        if ((a[1] > lat) !== (b[1] > lat) && lon < (b[0] - a[0]) * (lat - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+      }
+      return inside;
+    }
+    function inRegion(lon, lat) {
+      return region.rings.some(function (poly) {
+        return inRing(lon, lat, poly[0]) && !poly.slice(1).some(function (hole) { return inRing(lon, lat, hole); });
+      });
+    }
+    var icon = L.divIcon({
+      className: "forest-mark",
+      html: '<svg viewBox="0 0 50 34" aria-hidden="true"><path d="M10 6 5 15h2L3 24h14l-4-9h2zM9 24h2v7H9zM26 2l-6 12h2l-5 11h18l-5-11h2zM25 25h2v7h-2zM41 7l-5 9h2l-4 8h14l-4-8h2zM40 24h2v7h-2z"/></svg>',
+      iconSize: [50, 34], iconAnchor: [25, 17]
+    });
+    for (var count = 0, tries = 0; count < 28 && tries < 400; tries++) {
+      var lat = 56.3 + rnd() * 2.95, lon = 64.05 + rnd() * 6.15;
+      if (!inRegion(lon, lat) || (lat < 57.3 && rnd() < 0.65)) continue;
+      if (settlements.some(function (s) { return map.distance([lat, lon], [s[1], s[2]]) < 28000; })) continue;
+      var marker = L.marker([lat, lon], { pane: "cartography", interactive: false, keyboard: false, icon: icon }).addTo(map);
+      if (marker.getElement()) marker.getElement().setAttribute("aria-hidden", "true");
+      count++;
+    }
   };
 
   /* ---------- линии связи между главами ---------- */
@@ -388,7 +505,7 @@
     if (this.routes[id]) return Promise.resolve();
     var a = this.chapters[fromIdx].place.coords, b = this.chapters[toIdx].place.coords;
     var pts = this.arc(a, b, fromIdx % 2 ? -1 : 1);
-    var line = L.polyline(pts, { renderer: this.routeRenderer, interactive: false, className: "route", color: "#f2c46f", weight: 2, opacity: 0.95, lineCap: "round" }).addTo(this.map);
+    var line = L.polyline(pts, { renderer: this.routeRenderer, interactive: false, className: "route", color: "#D6A45B", weight: 1.6, opacity: 0.78, lineCap: "round" }).addTo(this.map);
     this.routes[id] = { line: line, pts: pts };
     var path = line.getElement();
     if (!animate || !path || !path.getTotalLength) {

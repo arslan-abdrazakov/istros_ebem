@@ -1,8 +1,0 @@
-{
-  "name": "tyumen-journey",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Тюмень. Сквозь туман времени — учебный исторический атлас",
-  "scripts": { "test": "node tools/browser_check.cjs" },
-  "devDependencies": { "playwright": "1.62.1" }
-}
